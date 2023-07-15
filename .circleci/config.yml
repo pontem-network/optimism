@@ -115,34 +115,14 @@ jobs:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile
+          command: pnpm install --frozen-lockfile --prefer-offline
       - save_cache:
           name: Save PNPM Package Cache
           key: pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
           paths:
             - "node_modules"
-            - "packages/chain-mon/node_modules"
-            - "packages/common-ts/node_modules"
-            - "packages/contracts-bedrock/node_modules"
-            - "packages/core-utils/node_modules"
-            - "packages/replica-healthcheck/node_modules"
-            - "packages/sdk/node_modules"
-            - "packages/contracts-ts/node_modules"
       - run:
           name: print forge version
           command: forge --version
@@ -329,6 +309,7 @@ jobs:
           command: |
             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
+  # Note this workflow assumes it doesn't depend on any npm install dependencies
   contracts-bedrock-coverage:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -336,25 +317,8 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: print forge version
           command: forge --version
@@ -372,6 +336,7 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
 
+  # Note this workflow assumes it doesn't depend on any npm install dependencies
   contracts-bedrock-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -379,29 +344,8 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
-      - run:
-          name: print forge version
-          command: forge --version
-          working_directory: packages/contracts-bedrock
       - run:
           name: run tests
           command: pnpm test
@@ -421,21 +365,16 @@ jobs:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      - run:
+          name: Install dependencies
+          command: pnpm install --frozen-lockfile --prefer-offline
+      - save_cache:
+          name: Save PNPM Package Cache
+          key: pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+          paths:
+            - "node_modules"
       - check-changed:
           patterns: contracts-bedrock
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: lint
           command: |
@@ -503,25 +442,8 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: slither
           command: |
@@ -531,31 +453,13 @@ jobs:
           command: pnpm autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
           working_directory: packages/contracts-bedrock
 
+  # This workflow runs a node script but assumes no node_module deps
   contracts-bedrock-validate-spaces:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: contracts-bedrock
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: validate spacers
           command: pnpm validate-spacers
@@ -569,19 +473,6 @@ jobs:
       - attach_workspace: { at: "." }
       - check-changed:
           patterns: contracts-bedrock,contracts
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: Compile with metadata hash
           command: pnpm clean && pnpm build:with-metadata
@@ -607,25 +498,8 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,contracts
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: Echidna Fuzz <<parameters.echidna_target>>
           command: pnpm echidna:<<parameters.echidna_target>>
@@ -639,25 +513,8 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,op-bindings
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: check go bindings
           command: make && git diff --exit-code
@@ -687,19 +544,6 @@ jobs:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: <<parameters.package_name>>,<<parameters.dependencies>>
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: Lint
           command: pnpm lint && git diff --exit-code
@@ -787,19 +631,6 @@ jobs:
       - checkout
       - check-changed:
           patterns: specs/(.*)\.md$
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: pnpm dev deps
           command: pnpm install
@@ -815,15 +646,10 @@ jobs:
       image: ubuntu-2204:2022.07.1
     steps:
       - checkout
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
       - run:
           name: Install node_modules
           command: |
-            pnpm install
+            pnpm install --frozen-lockfile
       - run:
           name: Lint check
           command: |
@@ -867,27 +693,8 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: packages
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
-      # Note: The below needs to be manually configured whenever we
-      # add a new package to CI.
       - run:
           name: Check common-ts
           command: npx depcheck
@@ -1058,10 +865,6 @@ jobs:
           command: |
             nvm install
             nvm use && node --version && npm --version
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
       - run:
           name: Install Package managers
           command: |
