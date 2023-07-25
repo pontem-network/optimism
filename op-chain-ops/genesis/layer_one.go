@@ -100,8 +100,13 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Initialize the OptimismPortal without being paused
-	data, err := portalABI.Pack("initialize", false)
+	data, err := portalABI.Pack(
+		"initialize",
+		predeploys.DevL2OutputOracleAddr,
+		config.PortalGuardian,
+		predeploys.DevSystemConfigAddr,
+		false, // _paused
+	)
 	if err != nil {
 		return nil, fmt.Errorf("cannot abi encode initialize for OptimismPortal: %w", err)
 	}
@@ -332,12 +337,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 			// as being paused to prevent invalid usage of the network
 			// as only the proxy should be used
 			Name: "OptimismPortal",
-			Args: []interface{}{
-				predeploys.DevL2OutputOracleAddr,
-				config.PortalGuardian,
-				true, // _paused
-				predeploys.DevSystemConfigAddr,
-			},
+			Args: []interface{}{},
 		},
 		{
 			Name: "L1CrossDomainMessenger",
@@ -400,10 +400,6 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployOptimismPortal(
 			opts,
 			backend,
-			deployment.Args[0].(common.Address),
-			deployment.Args[1].(common.Address),
-			deployment.Args[2].(bool),
-			deployment.Args[3].(common.Address),
 		)
 	case "L1CrossDomainMessenger":
 		_, tx, _, err = bindings.DeployL1CrossDomainMessenger(
