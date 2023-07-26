@@ -51,6 +51,7 @@ type TransactionWithdrawal struct {
 }
 
 type BridgeTransactionsView interface {
+	TransactionDepositByHash(common.Hash) (*TransactionDeposit, error)
 	TransactionWithdrawalByHash(common.Hash) (*TransactionWithdrawal, error)
 }
 
@@ -80,6 +81,20 @@ func newBridgeTransactionsDB(db *gorm.DB) BridgeTransactionsDB {
 func (db *bridgeTransactionsDB) StoreTransactionDeposits(deposits []*TransactionDeposit) error {
 	result := db.gorm.Create(&deposits)
 	return result.Error
+}
+
+func (db *bridgeTransactionsDB) TransactionDepositByHash(DepositHash common.Hash) (*TransactionDeposit, error) {
+	var deposit TransactionDeposit
+	result := db.gorm.Where(&BridgeDeposit{DepositHash: DepositHash}).Take(&deposit)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &deposit, nil
 }
 
 /*
