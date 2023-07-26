@@ -7,13 +7,12 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/processor"
-	"github.com/ethereum-optimism/optimism/op-service/client/utils"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
+	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestE2EBridge(t *testing.T) {
+func TestE2EBridgeTransfers(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
 	l1Client := testSuite.OpSys.Clients["l1"]
@@ -35,10 +34,6 @@ func TestE2EBridge(t *testing.T) {
 	l2StandardBridge, err := bindings.NewL2StandardBridge(predeploys.L2StandardBridgeAddr, l2Client)
 	require.NoError(t, err)
 
-	// pre-emptively conduct a deposit & withdrawal to speed up the test
-	setupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
 	aliceAddr := testSuite.OpCfg.Secrets.Addresses().Alice
 
 	l1Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L1ChainIDBig())
@@ -46,19 +41,15 @@ func TestE2EBridge(t *testing.T) {
 	l2Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L2ChainIDBig())
 	require.NoError(t, err)
 
+	// Simply transfer 1ETH using the low level contracts
 	l1Opts.Value = big.NewInt(params.Ether)
 	l2Opts.Value = big.NewInt(params.Ether)
 
+	// pre-emptively conduct a deposit & withdrawal to speed up the test
 	depositTx, err := l1StandardBridge.DepositETH(l1Opts, 200_000, []byte{byte(1)})
 	require.NoError(t, err)
 
-	withdrawTx, err := l2StandardBridge.Withdraw(l2Opts, processor.EthAddress, big.NewInt(params.Ether), 200_000, []byte{byte(1)})
-	require.NoError(t, err)
-
-	depositReceipt, err := utils.WaitReceiptOK(setupCtx, l1Client, depositTx.Hash())
-	require.NoError(t, err)
-
-	withdrawalReceipt, err := utils.WaitReceiptOK(setupCtx, l2Client, withdrawTx.Hash())
+	withdrawTx, err := l2StandardBridge.Withdraw(l2Opts, predeploys.LegacyERC20ETHAddr, l2Opts.Value, 200_000, []byte{byte(1)})
 	require.NoError(t, err)
 
 	t.Run("indexes ETH deposits", func(t *testing.T) {
@@ -70,6 +61,8 @@ func TestE2EBridge(t *testing.T) {
 		testSuite.Indexer.L2Processor.PauseForTest()
 
 		// (1) Test Deposit Initiation
+		depositReceipt, err := utils.WaitReceiptOK(testCtx, l1Client, depositTx.Hash())
+		require.NoError(t, err)
 
 		var depositHash common.Hash
 		for _, log := range depositReceipt.Logs {
@@ -134,10 +127,12 @@ func TestE2EBridge(t *testing.T) {
 	})
 
 	t.Run("indexes ETH withdrawals", func(t *testing.T) {
-		testCtx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+		testCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
 
 		// (1) Test Withdrawal Initiation
+		withdrawalReceipt, err := utils.WaitReceiptOK(testCtx, l2Client, withdrawTx.Hash())
+		require.NoError(t, err)
 
 		// wait for processor catchup
 		require.NoError(t, utils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
@@ -154,8 +149,6 @@ func TestE2EBridge(t *testing.T) {
 
 		msgPassed, err := withdrawals.ParseMessagePassed(withdrawalReceipt)
 		require.NoError(t, err)
-		require.NotNil(t, msgPassed)
-
 		withdrawalHash, err := withdrawals.WithdrawalHash(msgPassed)
 		require.NoError(t, err)
 
@@ -169,7 +162,8 @@ func TestE2EBridge(t *testing.T) {
 		require.Equal(t, byte(1), withdrawal.Tx.Data[0])
 		require.Nil(t, withdrawal.FinalizedL1EventGUID)
 
-		// (2) Test Withdrawal Proven
+		// (2) Test Withdrawal Proven. Even though `bridge_transactions_e2e_tests` already tests the 2-step withdrawal flow,
+		// we do the same here for good measure.
 
 		// prove & wait for processor catchup
 		withdrawParams, proveReceipt := op_e2e.ProveWithdrawal(t, *testSuite.OpCfg, l1Client, testSuite.OpSys.Nodes["sequencer"], testSuite.OpCfg.Secrets.Alice, withdrawalReceipt)
