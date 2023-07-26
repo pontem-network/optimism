@@ -143,6 +143,10 @@ func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]*types.
 	return headers, nil
 }
 
+func (c *client) BlocksByRange(startHeight, endHeight *big.Int) ([]*types.Block, error) {
+	return nil, nil
+}
+
 // StorageHash returns the sha3 of the storage root for the specified account
 func (c *client) StorageHash(address common.Address, blockNumber *big.Int) (common.Hash, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)

@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultLoopInterval     = 5 * time.Second
+	defaultLoopInterval     = 10 * time.Second
 	defaultHeaderBufferSize = 500
 )
 

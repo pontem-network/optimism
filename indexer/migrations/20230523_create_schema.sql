@@ -67,19 +67,88 @@ CREATE TABLE IF NOT EXISTS output_proposals (
  * BRIDGING DATA
  */
 
-CREATE TABLE IF NOT EXISTS deposits (
-	guid                 VARCHAR PRIMARY KEY NOT NULL,
+-- OptimismPortal/L2ToL1MessagePasser
+CREATE TABLE IF NOT EXISTS transaction_deposits (
+    deposit_hash VARCHAR NOT NULL PRIMARY KEY,
 
-    -- Event causing the deposit
     initiated_l1_event_guid VARCHAR NOT NULL REFERENCES l1_contract_events(guid),
-    sent_message_nonce      UINT256 UNIQUE,
+    --inclusion_l2_block_hash VARCHAR REFERENCES l2_block_headers(hash),
 
-    -- Finalization marker for the deposit
+    -- OptimismPortal specific
+    version     UINT256,
+    opaque_data VARCHAR NOT NULL,
+
+    -- transaction data
+    from_address VARCHAR NOT NULL,
+    to_address   VARCHAR NOT NULL,
+    amount       UINT256,
+    gas_limit    UINT256,
+    data         VARCHAR NOT NULL,
+    timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
+);
+CREATE TABLE IF NOT EXISTS transaction_withdrawals (
+    withdrawal_hash VARCHAR NOT NULL PRIMARY KEY,
+
+    initiated_l2_event_guid VARCHAR NOT NULL REFERENCES l2_contract_events(guid),
+
+    -- Multistep (bedrock) process of a withdrawal
+    proven_l1_event_guid    VARCHAR REFERENCES l1_contract_events(guid),
+    finalized_l1_event_guid VARCHAR REFERENCES l1_contract_events(guid),
+
+    -- L2ToL1MessagePasser specific
+    nonce UINT256 UNIQUE,
+
+    -- transaction data
+    from_address VARCHAR NOT NULL,
+    to_address   VARCHAR NOT NULL,
+    amount       UINT256,
+    gas_limit    UINT256,
+    data         VARCHAR NOT NULL,
+    timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
+);
+
+/*
+-- CrossDomainMessenger
+CREATE TABLE IF NOT EXISTS l1_sent_messages(
+    nonce                    UINT256 NOT NULL PRIMARY KEY,
+    event_guid               VARCHAR NOT NULL REFERENCES l1_contract_events(guid),
+    transaction_deposit_hash VARCHAR NOT NULL REFERENCES transaction_deposits(deposit_hash),
+
+    -- sent message
+    target_address VARCHAR NOT NULL,
+    sender_address VARCHAR NOT NULL,
+    value          UINT256,
+    message        VARCHAR NOT NULL,
+    gasLimit       UINT256 NOT NULL,
+    timestamp      INTEGER NOT NULL CHECK (timestamp > 0)
+);
+CREATE TABLE IF NOT EXISTS l2_sent_messages(
+    nonce                       UINT256 NOT NULL PRIMARY KEY,
+    event_guid                  VARCHAR NOT NULL REFERENCES l2_contract_events(guid),
+    transaction_withdrawal_hash VARCHAR NOT NULL transaction_withdrawals(withdrawal_hash),
+
+    -- sent message
+    target_address VARCHAR NOT NULL,
+    sender_address VARCHAR NOT NULL,
+    message        VARCHAR NOT NULL,
+    value          UINT256,
+    gasLimit       UINT256,
+    timestamp      INTEGER NOT NULL CHECK (timestamp > 0)
+);
+*/
+
+-- StandardBridge
+CREATE TABLE IF NOT EXISTS bridge_deposits (
+	guid VARCHAR PRIMARY KEY NOT NULL,
+
+    initiated_l1_event_guid VARCHAR NOT NULL REFERENCES l1_contract_events(guid),
     finalized_l2_event_guid VARCHAR REFERENCES l2_contract_events(guid),
 
-    -- Deposit information (do we need indexes on from/to?)
-	from_address     VARCHAR NOT NULL,
+    deposit_hash                 VARCHAR UNIQUE NOT NULL REFERENCES transaction_deposits(deposit_hash),
+    cross_domain_messenger_nonce UINT256 UNIQUE,
 
+    -- Deposit information
+	from_address     VARCHAR NOT NULL,
 	to_address       VARCHAR NOT NULL,
 	l1_token_address VARCHAR NOT NULL,
 	l2_token_address VARCHAR NOT NULL,
@@ -87,22 +156,16 @@ CREATE TABLE IF NOT EXISTS deposits (
 	data             VARCHAR NOT NULL,
     timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
 );
-
-CREATE TABLE IF NOT EXISTS withdrawals (
+CREATE TABLE IF NOT EXISTS bridge_withdrawals (
 	guid                VARCHAR PRIMARY KEY NOT NULL,
 
-    -- Event causing this withdrawal
     initiated_l2_event_guid VARCHAR NOT NULL REFERENCES l2_contract_events(guid),
-    sent_message_nonce      UINT256 UNIQUE,
-
-    -- Multistep (bedrock) process of a withdrawal
-    withdrawal_hash      VARCHAR NOT NULL,
-    proven_l1_event_guid VARCHAR REFERENCES l1_contract_events(guid),
-
-    -- Finalization marker (legacy & bedrock)
     finalized_l1_event_guid VARCHAR REFERENCES l1_contract_events(guid),
 
-    -- Withdrawal information (do we need indexes on from/to?)
+    withdrawal_hash              VARCHAR UNIQUE NOT NULL REFERENCES transaction_withdrawals(withdrawal_hash),
+    cross_domain_messenger_nonce UINT256 UNIQUE,
+
+    -- Withdrawal information
 	from_address     VARCHAR NOT NULL,
 	to_address       VARCHAR NOT NULL,
 	l1_token_address VARCHAR NOT NULL,

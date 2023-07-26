@@ -111,7 +111,7 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 
 		// Look for the sent message event to extract the associated messager nonce
 		//   - L1: BridgeInitiated -> Portal#DepositTransaction -> SentMessage ...
-		//   - L1: BridgeInitiated -> L2ToL1MessagePasser#MessagePassed -> SentMessage ...
+		//   - L2: BridgeInitiated -> L2ToL1MessagePasser#MessagePassed -> SentMessage ...
 		var sentMsgData bindings.L1CrossDomainMessengerSentMessage
 		sentMsgLog := events.eventLog[events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 2}].GUID]
 		err = UnpackLog(&sentMsgData, sentMsgLog, sentMessageEventAbi.Name, l1CrossDomainMessengerABI)
@@ -209,19 +209,18 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 		}
 
 		// There's no way to extract the nonce on the relayed message event. we can extract the nonce by
-		// by unpacking the transaction input for the `relayMessage` transaction. Since bedrock has OptimismPortal
-		// as on L1 as an intermediary for finalization, we have to check both scenarios
+		// by unpacking the transaction input for the `relayMessage` transaction.
 		tx, isPending, err := rawEthClient.TransactionByHash(context.Background(), relayedMsgLog.TxHash)
 		if err != nil || isPending {
 			return nil, errors.New("unable to query relayMessage tx for bridge finalization event")
 		}
 
-		// If this is a finalization step with the optimism portal, the calldata for relayMessage invocation can be
+		// If this is a finalization step with the OptimismPortal, the calldata for relayMessage invocation can be
 		// extracted from the withdrawal transaction.
-
+		//
 		// NOTE: the L2CrossDomainMessenger nonce may not match the L2ToL1MessagePasser nonce, hence the additional
 		// layer of decoding vs reading the nocne of the withdrawal transaction. Both nonces have a similar but
-		// different lifeycle that might not match (i.e L2ToL1MessagePasser can be invoced directly)
+		// different lifeycle
 		var relayMsgCallData []byte
 		switch {
 		case bytes.Equal(tx.Data()[:4], relayMessageMethodAbi.ID):
