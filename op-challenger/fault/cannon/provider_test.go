@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -122,6 +123,55 @@ func TestGetPreimage(t *testing.T) {
 	})
 }
 
+func TestAbsolutePreState(t *testing.T) {
+	dataDir := t.TempDir()
+	_ = os.Mkdir(dataDir, 0o777)
+
+	t.Run("StateUnavailable", func(t *testing.T) {
+		provider, _ := setupWithTestData("/dir/does/not/exist")
+		_, err := provider.AbsolutePreState(context.Background())
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+
+	t.Run("InvalidStateFile", func(t *testing.T) {
+		setupPreState(t, dataDir, "invalid.json")
+		provider, _ := setupWithTestData(dataDir)
+		_, err := provider.AbsolutePreState(context.Background())
+		require.ErrorContains(t, err, "invalid mipsevm state")
+	})
+
+	t.Run("ExpectedAbsolutePreState", func(t *testing.T) {
+		setupPreState(t, dataDir, elfState)
+		provider, _ := setupWithTestData(dataDir)
+		preState, err := provider.AbsolutePreState(context.Background())
+		require.NoError(t, err)
+		state := mipsevm.State{
+			Memory:         mipsevm.NewMemory(),
+			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
+			PreimageOffset: 0,
+			PC:             0,
+			NextPC:         1,
+			LO:             0,
+			HI:             0,
+			Heap:           0,
+			ExitCode:       0,
+			Exited:         false,
+			Step:           0,
+			Registers:      [32]uint32{},
+		}
+		require.Equal(t, state.EncodeWitness(), preState)
+	})
+}
+
+func setupPreState(t *testing.T, dataDir string, filename string) {
+	srcDir := filepath.Join("test_data")
+	path := filepath.Join(srcDir, filename)
+	file, err := testData.ReadFile(path)
+	require.NoErrorf(t, err, "reading %v", path)
+	err = os.WriteFile(filepath.Join(dataDir, elfState), file, 0o644)
+	require.NoErrorf(t, err, "writing %v", path)
+}
+
 func setupTestData(t *testing.T) string {
 	srcDir := filepath.Join("test_data", "proofs")
 	entries, err := testData.ReadDir(srcDir)
@@ -132,7 +182,7 @@ func setupTestData(t *testing.T) string {
 		path := filepath.Join(srcDir, entry.Name())
 		file, err := testData.ReadFile(path)
 		require.NoErrorf(t, err, "reading %v", path)
-		err = os.WriteFile(filepath.Join(dataDir, "proofs", entry.Name()), file, 0o644)
+		err = os.WriteFile(filepath.Join(dataDir, proofsDir, entry.Name()), file, 0o644)
 		require.NoErrorf(t, err, "writing %v", path)
 	}
 	return dataDir

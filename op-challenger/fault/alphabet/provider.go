@@ -57,8 +57,8 @@ func (ap *AlphabetProvider) Get(ctx context.Context, i uint64) (common.Hash, err
 	return crypto.Keccak256Hash(claimBytes), nil
 }
 
-func (ap *AlphabetProvider) AbsolutePreState(ctx context.Context) []byte {
-	return common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
+func (ap *AlphabetProvider) AbsolutePreState(ctx context.Context) ([]byte, error) {
+	return common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060"), nil
 }
 
 // BuildAlphabetPreimage constructs the claim bytes for the index and state item.
