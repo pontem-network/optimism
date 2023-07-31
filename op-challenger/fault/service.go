@@ -56,7 +56,10 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 	var trace types.TraceProvider
 	switch cfg.TraceType {
 	case config.TraceTypeCannon:
-		trace = cannon.NewCannonTraceProvider(logger, cfg)
+		trace, err = cannon.NewCannonTraceProvider(ctx, logger, cfg, client)
+		if err != nil {
+			return nil, fmt.Errorf("create cannon trace provider: %w", err)
+		}
 	case config.TraceTypeAlphabet:
 		trace = alphabet.NewAlphabetProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
 	default:
