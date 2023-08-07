@@ -13,4 +13,4 @@ build/bin
 build/_bin
 tests/testdata
 
-**/target
+/**/target
