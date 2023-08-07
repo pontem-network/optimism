@@ -1,0 +1,4 @@
+
+docker__ports:
+	sudo netstat -ntlp | grep docker | grep 0.0.0.0 | awk '{print $$4}' | cut -c9-15
+
