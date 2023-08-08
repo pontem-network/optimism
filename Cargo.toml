@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+
+members = [
+  "test-infra",
+]
+
+# All workspace members should inherit these keys
+# for package declarations.
+[workspace.package]
+authors = [
+  "Maxim Vladimirov <maxim@pontem.network>",
+  "Stepan Sinyakov <stepan.sinyakov@pontem.network>",
+  "Dm. Yakushev <dmitryyakushev@dfinance.co>"
+]
+edition = "2021"
+homepage = "https://pontem.network"
+license = "Apache-2.0"
+publish = false
+repository = "https://github.com/pontem-network/optimism"
+
+[workspace.dependencies]
+anyhow = "1.0.72"
+semver = "1.0.18"
+regex = "1.9.1"
+rand = "0.8.5"
+mimicaw = "0.1.3"
+
+serde = { version = "1.0.175", features = ["derive"] }
+serde_json = "1.0.103"
+hex = "0.4.3"
+
+env_logger = "0.10.0"
+log = "0.4.19"
+
+tokio = { version = "1.21.0", features = ["full"] }
+reqwest = { version = "0.11.11", features = ["cookies", "json", "stream"] }
+
+web3 = "0.19.0"
+ethabi = "18.0.0"
+
+
+[profile.release]
+debug = true
+overflow-checks = true

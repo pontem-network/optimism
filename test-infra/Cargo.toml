@@ -1,0 +1,33 @@
+[package]
+name = "test-infra"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+semver.workspace = true
+log.workspace = true
+regex.workspace = true
+rand.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+
+tokio.workspace = true
+reqwest.workspace = true
+
+web3.workspace = true
+ethabi.workspace = true
+
+
+[dev-dependencies]
+env_logger.workspace = true
+mimicaw.workspace = true
+
+[features]
+testing_local_optimism_sol = []
+
+[[test]]
+name = "node_eth"
+path = "tests/local_optimism_sol.rs"
+harness = false
+required-features = ["testing_local_optimism_sol"]
