@@ -47,7 +47,7 @@ exec geth \
 	--http.vhosts="*" \
 	--http.addr=0.0.0.0 \
 	--http.port="$RPC_PORT" \
-	--http.api=web3,debug,eth,txpool,net,engine,personal \
+	--http.api=web3,debug,eth,txpool,net,engine \
 	--ws \
 	--ws.addr=0.0.0.0 \
 	--ws.port="$WS_PORT" \

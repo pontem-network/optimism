@@ -32,40 +32,33 @@
 use anyhow::Result;
 use log::{debug, error, info};
 use mimicaw::{Args, Test};
-use serde_json::Value;
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use secp256k1::SecretKey;
 use std::str::FromStr;
 use std::time::Duration;
+use test_infra::{new_test_account_with_coins, DEV_ACCOUNT_ADDRESS, DEV_ACCOUNT_PRIVATE_KEY};
 use tokio::task;
 use web3::contract::Options;
-use web3::futures::future::join_all;
 use web3::transports::Http;
-use web3::types::{Address, TransactionRequest, U256};
+use web3::types::U256;
 use web3::Web3;
 
 use test_infra::check_service::wait_up;
-use test_infra::solc::check_solc;
+use test_infra::ethereum_key::{SecretKeyGen, SecretKeyToAddressAccount};
+use test_infra::solc::{build_sol, check_solc, SolContract};
+use test_infra::tx::{transfer_sign, GetTheBalance};
 
-mod eth;
 mod mimicaw_helper;
-mod sol;
 mod tmp; // experiments
 mod tmpdir;
 
-use crate::eth::{new_account, root_account, unlock};
 use crate::mimicaw_helper::TestHandleResultToOutcom;
-use crate::sol::{build_sol, SolContract};
+
 use crate::tmp::find_eth_ports;
 use crate::tmpdir::TmpDir;
 
 const L1_ADDRESS: &str = "0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E";
 const L1_HTTP: &str = "http://127.0.0.1:8545";
 const L2_HTTP: &str = "http://127.0.0.1:9545";
-
-const ACCOUNT_ADDRESS: &str = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266";
-const ACCOUNT_PRIVATE_KEY: &str =
-    "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
 type TestFn = fn() -> task::JoinHandle<Result<()>>;
 
@@ -91,14 +84,15 @@ async fn main() -> Result<()> {
         Test::<TestFn>::test("node_eth::l1::create_new_account", || {
             task::spawn(async { l1_create_new_account().await })
         }),
-        Test::<TestFn>::test("node_eth::create_new_account_l2", || {
-            task::spawn(async { create_new_account_l2().await })
-        })
-        .ignore(true),
-        Test::<TestFn>::test("node_eth::deploy_contract", || {
-            task::spawn(async { deploy_contract().await })
-        })
-        .ignore(true),
+        Test::<TestFn>::test("node_eth::l2::create_new_account", || {
+            task::spawn(async { l2_create_new_account().await })
+        }),
+        Test::<TestFn>::test("node_eth::l1::deploy_call_contract", || {
+            task::spawn(async { l1_deploy_call_contract().await })
+        }),
+        Test::<TestFn>::test("node_eth::l2::deploy_call_contract", || {
+            task::spawn(async { l2_deploy_call_contract().await })
+        }),
     ];
 
     mimicaw::run_tests(&args, tests, |_, test_fn: TestFn| {
@@ -112,11 +106,9 @@ async fn main() -> Result<()> {
 async fn l1_root_account_exist() -> Result<()> {
     let client = Web3::new(Http::new(L1_HTTP)?);
 
-    let balance = client
-        .eth()
-        .balance(Address::from_str(ACCOUNT_ADDRESS)?, None)
-        .await?;
-    debug!("[L1 balance] {ACCOUNT_ADDRESS}: {balance}");
+    let root_account = DEV_ACCOUNT_ADDRESS.clone();
+    let balance = root_account.balance(&client).await?;
+    debug!("[L1 balance] {root_account}: {balance}");
     assert!(balance > U256::from(0));
 
     Ok(())
@@ -125,11 +117,9 @@ async fn l1_root_account_exist() -> Result<()> {
 async fn l2_root_account_exist() -> Result<()> {
     let client = Web3::new(Http::new(L2_HTTP)?);
 
-    let balance = client
-        .eth()
-        .balance(Address::from_str(ACCOUNT_ADDRESS)?, None)
-        .await?;
-    debug!("[L2 balance] {ACCOUNT_ADDRESS}: {balance}");
+    let root_account = DEV_ACCOUNT_ADDRESS.clone();
+    let balance = root_account.balance(&client).await?;
+    debug!("[L1 balance] {root_account}: {balance}");
     assert!(balance > U256::from(0));
 
     Ok(())
@@ -138,95 +128,106 @@ async fn l2_root_account_exist() -> Result<()> {
 async fn l1_create_new_account() -> Result<()> {
     let client = Web3::new(Http::new(L1_HTTP)?);
 
-    let root_account_address = Address::from_str(ACCOUNT_ADDRESS)?;
-    let alice_account_address = Address::from_str("34d031a759acd831e866c88a17eba43bcc7ae4f0")?;
+    let root_account_address = DEV_ACCOUNT_ADDRESS.clone();
+    let root_key = DEV_ACCOUNT_PRIVATE_KEY.clone();
 
-    // fund new account
-    dbg!(1);
+    let alice_key = SecretKey::generate();
+    let alice_address = alice_key.to_account_address();
+    let balance = alice_address.balance(&client).await?;
+    debug!("L1 {alice_address}: {balance}");
+    assert_eq!(balance, U256::from(0));
+
     let coins = U256::exp10(20);
-    let tx_object = TransactionRequest {
-        from: root_account_address,
-        to: Some(alice_account_address),
-        gas: Some(50_000.into()),
-        value: Some(coins),
-        ..Default::default()
-    };
+    transfer_sign(&client, &root_key, alice_address, coins).await?;
 
-    dbg!(2);
-    let r = client
-        .send_transaction_with_confirmation(tx_object, Duration::from_secs(1), 1)
-        .await?;
-    dbg!(3);
-    //
-
-    todo!();
-
-    let new_account = new_account(&client, root_account_address).await?;
-    dbg!(&new_account);
-
-    // accounts.push(Address::from_str(ACCOUNT_ADDRESS)?);
-    //
-
-    todo!();
-    // let root_account_address = root_account(&client).await?;
-    // new_account(&client, root_account_address).await?;
+    let balance = alice_address.balance(&client).await?;
+    debug!("L1 {alice_address}: {balance}");
+    assert_eq!(balance, coins);
 
     Ok(())
 }
 
-async fn create_new_account_l2() -> Result<()> {
+async fn l2_create_new_account() -> Result<()> {
     let client = Web3::new(Http::new(L2_HTTP)?);
 
-    let mut accounts = client.eth().accounts().await?;
-    accounts.push(Address::from_str(ACCOUNT_ADDRESS)?);
+    let alice_key = SecretKey::generate();
+    let alice_address = alice_key.to_account_address();
+    let balance = alice_address.balance(&client).await?;
+    debug!("L1 {alice_address}: {balance}");
+    assert_eq!(balance, U256::from(0));
 
-    for address in accounts {
-        let balance = client.eth().balance(address, None).await?;
-        debug!("L2 {address:x}:{balance}");
-    }
-    // 0.16226701000000000
-    todo!();
-    // let root_account_address = root_account(&client).await?;
-    // new_account(&client, root_account_address).await?;
+    let coins = U256::exp10(20);
+    transfer_sign(&client, &DEV_ACCOUNT_PRIVATE_KEY, alice_address, coins).await?;
 
-    // 0xFC5ceF605d3bfC11D6EBe21c1C0304038E65B921
-    // {"address":"fc5cef605d3bfc11d6ebe21c1c0304038e65b921","crypto":{"cipher":"aes-128-ctr","ciphertext":"c1db43d5c056f08df2b3bc4b4d474d2d084c35d4f48bbe2ab47a8f5052b33157","cipherparams":{"iv":"d01d157092c89260dbdf1ac2b47940bd"},"kdf":"scrypt","kdfparams":{"dklen":32,"n":262144,"p":1,"r":8,"salt":"76c370e096f853bce8e28162840d6c560d8cc830bd49dd7c41b3efb309fafedb"},"mac":"b24ebdcacef62d0f232a8a1ab03f42ec89ddda3b0c32259847cb0a20e5df3ea0"},"id":"81ee2b72-b634-49bd-98ed-248c4b739aeb","version":3}
+    let balance = alice_address.balance(&client).await?;
+    debug!("L1 {alice_address}: {balance}");
+    assert_eq!(balance, coins);
 
     Ok(())
 }
 
-async fn deploy_contract() -> Result<()> {
-    todo!()
-    // let contract_sol = SolContract::try_from_path("./tests/sol_sources/const_fn.sol").await?;
+async fn l1_deploy_call_contract() -> Result<()> {
+    let contract_sol = SolContract::try_from_path("./tests/sources/sol/const_fn.sol").await?;
+    let client = Web3::new(Http::new(L1_HTTP)?);
+
+    let alice_key = new_test_account_with_coins(&client).await?;
+    let web3_contract =
+        web3::contract::Contract::deploy(client.eth(), contract_sol.abi_str().as_bytes())?
+            .confirmations(10)
+            .poll_interval(Duration::from_secs(12))
+            .options(Options::with(|opt| opt.gas = Some(30_000_000.into())))
+            .sign_with_key_and_execute(contract_sol.bin_hex(), (), &alice_key, None)
+            .await?;
+
+    let contract_address = web3_contract.address();
+    println!("Deployed at: 0x{contract_address:x}");
+
     //
-    // let client = Web3::new(Http::new(&l1_http())?);
+    let result: u64 = web3_contract
+        .query("const_fn_10", (), None, Options::default(), None)
+        .await?;
+    assert_eq!(result, 10);
+
     //
-    // let root_account_address = root_account(&client).await?;
-    // let (alice_address, alice_key) = new_account(&client, root_account_address).await?;
+    let contract =
+        web3::contract::Contract::new(client.eth(), contract_address, contract_sol.abi()?);
+    let result: bool = web3_contract
+        .query("const_fn_true", (), None, Options::default(), None)
+        .await?;
+    assert!(result);
+
+    Ok(())
+}
+
+async fn l2_deploy_call_contract() -> Result<()> {
+    let contract_sol = SolContract::try_from_path("./tests/sources/sol/const_fn.sol").await?;
+    let client = Web3::new(Http::new(L1_HTTP)?);
+
+    let alice_key = new_test_account_with_coins(&client).await?;
+    let web3_contract =
+        web3::contract::Contract::deploy(client.eth(), contract_sol.abi_str().as_bytes())?
+            .confirmations(10)
+            .poll_interval(Duration::from_secs(12))
+            .options(Options::with(|opt| opt.gas = Some(30_000_000.into())))
+            .sign_with_key_and_execute(contract_sol.bin_hex(), (), &alice_key, None)
+            .await?;
+
+    let contract_address = web3_contract.address();
+    println!("Deployed at: 0x{contract_address:x}");
+
     //
-    // let web3_contract =
-    //     web3::contract::Contract::deploy(client.eth(), contract_sol.abi_str().as_bytes())?
-    //         .confirmations(1)
-    //         .poll_interval(Duration::from_secs(1))
-    //         .options(Options::with(|opt| opt.gas = Some(3_000_000.into())))
-    //         .execute(contract_sol.bin_hex(), (), alice_address)
-    //         .await?;
-    // let contract_address = web3_contract.address();
-    // println!("Deployed at: 0x{contract_address:x}");
+    let result: u64 = web3_contract
+        .query("const_fn_10", (), None, Options::default(), None)
+        .await?;
+    assert_eq!(result, 10);
+
     //
-    // //
-    // let result: u64 = web3_contract
-    //     .query("const_fn_10", (), None, Options::default(), None)
-    //     .await?;
-    // assert_eq!(result, 10);
-    //
-    // //
-    // let contract =
-    //     web3::contract::Contract::new(client.eth(), contract_address, contract_sol.abi()?);
-    // let result: bool = web3_contract
-    //     .query("const_fn_true", (), None, Options::default(), None)
-    //     .await?;
-    // assert!(result);
-    //
-    // Ok(())
+    let contract =
+        web3::contract::Contract::new(client.eth(), contract_address, contract_sol.abi()?);
+    let result: bool = web3_contract
+        .query("const_fn_true", (), None, Options::default(), None)
+        .await?;
+    assert!(result);
+
+    Ok(())
 }

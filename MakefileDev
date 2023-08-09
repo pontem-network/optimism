@@ -6,4 +6,4 @@ test__local_optimism_sol:
 	cargo test -p test-infra --features testing_local_optimism_sol
 
 test__:
-	RUST_LOG=debug cargo test -p test-infra --features testing_local_optimism_sol -- create_new_account
+	RUST_LOG=debug cargo test -p test-infra --features testing_local_optimism_sol -- --test-threads=1
