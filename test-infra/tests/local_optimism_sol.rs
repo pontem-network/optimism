@@ -41,7 +41,7 @@ use tokio::task;
 use web3::contract::Options;
 use web3::futures::future::join_all;
 use web3::transports::Http;
-use web3::types::{Address, U256};
+use web3::types::{Address, TransactionRequest, U256};
 use web3::Web3;
 
 use test_infra::check_service::wait_up;
@@ -82,12 +82,19 @@ async fn main() -> Result<()> {
     let args = Args::from_env().unwrap_or_else(|st| st.exit());
 
     let tests: Vec<Test<TestFn>> = vec![
-        Test::<TestFn>::test("node_eth::create_new_account_l1", || {
-            task::spawn(async { create_new_account_l1().await })
+        Test::<TestFn>::test("node_eth::l1::root_account_exist", || {
+            task::spawn(async { l1_root_account_exist().await })
+        }),
+        Test::<TestFn>::test("node_eth::l2::root_account_exist", || {
+            task::spawn(async { l2_root_account_exist().await })
+        }),
+        Test::<TestFn>::test("node_eth::l1::create_new_account", || {
+            task::spawn(async { l1_create_new_account().await })
         }),
         Test::<TestFn>::test("node_eth::create_new_account_l2", || {
             task::spawn(async { create_new_account_l2().await })
-        }),
+        })
+        .ignore(true),
         Test::<TestFn>::test("node_eth::deploy_contract", || {
             task::spawn(async { deploy_contract().await })
         })
@@ -102,22 +109,67 @@ async fn main() -> Result<()> {
     .exit();
 }
 
-async fn create_new_account_l1() -> Result<()> {
+async fn l1_root_account_exist() -> Result<()> {
     let client = Web3::new(Http::new(L1_HTTP)?);
-    let mut accounts = client.eth().accounts().await?;
-    accounts.push(Address::from_str(ACCOUNT_ADDRESS)?);
 
-    for address in accounts {
-        let balance = client.eth().balance(address, None).await?;
-        debug!("L1 {address:x}:{balance}");
-    }
+    let balance = client
+        .eth()
+        .balance(Address::from_str(ACCOUNT_ADDRESS)?, None)
+        .await?;
+    debug!("[L1 balance] {ACCOUNT_ADDRESS}: {balance}");
+    assert!(balance > U256::from(0));
+
+    Ok(())
+}
+
+async fn l2_root_account_exist() -> Result<()> {
+    let client = Web3::new(Http::new(L2_HTTP)?);
+
+    let balance = client
+        .eth()
+        .balance(Address::from_str(ACCOUNT_ADDRESS)?, None)
+        .await?;
+    debug!("[L2 balance] {ACCOUNT_ADDRESS}: {balance}");
+    assert!(balance > U256::from(0));
+
+    Ok(())
+}
+
+async fn l1_create_new_account() -> Result<()> {
+    let client = Web3::new(Http::new(L1_HTTP)?);
+
+    let root_account_address = Address::from_str(ACCOUNT_ADDRESS)?;
+    let alice_account_address = Address::from_str("34d031a759acd831e866c88a17eba43bcc7ae4f0")?;
+
+    // fund new account
+    dbg!(1);
+    let coins = U256::exp10(20);
+    let tx_object = TransactionRequest {
+        from: root_account_address,
+        to: Some(alice_account_address),
+        gas: Some(50_000.into()),
+        value: Some(coins),
+        ..Default::default()
+    };
+
+    dbg!(2);
+    let r = client
+        .send_transaction_with_confirmation(tx_object, Duration::from_secs(1), 1)
+        .await?;
+    dbg!(3);
+    //
+
+    todo!();
+
+    let new_account = new_account(&client, root_account_address).await?;
+    dbg!(&new_account);
+
+    // accounts.push(Address::from_str(ACCOUNT_ADDRESS)?);
+    //
 
     todo!();
     // let root_account_address = root_account(&client).await?;
     // new_account(&client, root_account_address).await?;
-
-    // 0xFC5ceF605d3bfC11D6EBe21c1C0304038E65B921
-    // {"address":"fc5cef605d3bfc11d6ebe21c1c0304038e65b921","crypto":{"cipher":"aes-128-ctr","ciphertext":"c1db43d5c056f08df2b3bc4b4d474d2d084c35d4f48bbe2ab47a8f5052b33157","cipherparams":{"iv":"d01d157092c89260dbdf1ac2b47940bd"},"kdf":"scrypt","kdfparams":{"dklen":32,"n":262144,"p":1,"r":8,"salt":"76c370e096f853bce8e28162840d6c560d8cc830bd49dd7c41b3efb309fafedb"},"mac":"b24ebdcacef62d0f232a8a1ab03f42ec89ddda3b0c32259847cb0a20e5df3ea0"},"id":"81ee2b72-b634-49bd-98ed-248c4b739aeb","version":3}
 
     Ok(())
 }

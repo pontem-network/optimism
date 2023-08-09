@@ -37,6 +37,8 @@ fi
 # Warning: Archive mode is required, otherwise old trie nodes will be
 # pruned within minutes of starting the devnet.
 
+# --http.api=personal
+
 exec geth \
 	--datadir="$GETH_DATA_DIR" \
 	--verbosity="$VERBOSITY" \
@@ -45,7 +47,7 @@ exec geth \
 	--http.vhosts="*" \
 	--http.addr=0.0.0.0 \
 	--http.port="$RPC_PORT" \
-	--http.api=web3,debug,eth,txpool,net,engine \
+	--http.api=web3,debug,eth,txpool,net,engine,personal \
 	--ws \
 	--ws.addr=0.0.0.0 \
 	--ws.port="$WS_PORT" \

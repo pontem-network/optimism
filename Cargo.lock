@@ -1684,8 +1684,10 @@ dependencies = [
  "rand",
  "regex",
  "reqwest",
+ "secp256k1",
  "semver",
  "serde_json",
+ "sha3",
  "tokio",
  "web3",
 ]
