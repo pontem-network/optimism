@@ -89,8 +89,8 @@ services:
       - l2
       - op-node
     build:
-      context: ../
-      dockerfile: ./op-proposer/Dockerfile
+      context: ../../
+      dockerfile: ./optimism/op-proposer/Dockerfile
     ports:
       - "6062:6060"
       - "7302:7300"
@@ -112,8 +112,8 @@ services:
       - l2
       - op-node
     build:
-      context: ../
-      dockerfile: ./op-batcher/Dockerfile
+      context: ../../
+      dockerfile: ./optimism/op-batcher/Dockerfile
     ports:
       - "6061:6060"
       - "7301:7300"
