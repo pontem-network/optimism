@@ -1,18 +1,24 @@
 [submodule "packages/contracts-bedrock/lib/openzeppelin-contracts-upgradeable"]
 	path = packages/contracts-bedrock/lib/openzeppelin-contracts-upgradeable
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
+	rev = 0a2cb9a445c365870ed7a8ab461b12acf3e27d63
 [submodule "packages/contracts-bedrock/lib/openzeppelin-contracts"]
 	path = packages/contracts-bedrock/lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+	rev = ecd2ca2cd7cac116f7a37d0e474bbb3d7d5e1c4d
 [submodule "packages/contracts-bedrock/lib/solmate"]
 	path = packages/contracts-bedrock/lib/solmate
 	url = https://github.com/transmissions11/solmate
+	rev = 8f9b23f8838670afda0fd8983f2c41e8037ae6bc
 [submodule "packages/contracts-bedrock/lib/clones-with-immutable-args"]
 	path = packages/contracts-bedrock/lib/clones-with-immutable-args
 	url = https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args
+	rev = 105efee1b9127ed7f6fedf139e1fc796ce8791f2
 [submodule "packages/contracts-bedrock/lib/ds-test"]
 	path = packages/contracts-bedrock/lib/ds-test
 	url = https://github.com/dapphub/ds-test
+	rev = c9ce3f25bde29fc5eb9901842bf02850dfd2d084
 [submodule "packages/contracts-bedrock/lib/forge-std"]
 	path = packages/contracts-bedrock/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
+	rev = e8a047e3f40f13fa37af6fe14e6e06283d9a060e
