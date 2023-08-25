@@ -207,8 +207,8 @@ async fn l2_deploy_call_contract() -> Result<()> {
     let web3_contract =
         web3::contract::Contract::deploy(client.eth(), contract_sol.abi_str().as_bytes())?
             .confirmations(10)
-            .poll_interval(Duration::from_secs(12))
-            .options(Options::with(|opt| opt.gas = Some(30_000_000.into())))
+            .poll_interval(Duration::from_secs(3))
+            .options(Options::with(|opt| opt.gas = Some(100_000.into())))
             .sign_with_key_and_execute(contract_sol.bin_hex(), (), &alice_key, None)
             .await?;
 
