@@ -22,6 +22,7 @@ pjoin = os.path.join
 parser = argparse.ArgumentParser(description='Bedrock devnet launcher')
 parser.add_argument('--monorepo-dir', help='Directory of the monorepo', default=os.getcwd())
 parser.add_argument('--allocs', help='Only create the allocs and exit', type=bool, action=argparse.BooleanOptionalAction)
+parser.add_argument('--offline', help='Force forge to work offline', type=bool, action=argparse.BooleanOptionalAction)
 parser.add_argument('--test', help='Tests the deployment, must already be deployed', type=bool, action=argparse.BooleanOptionalAction)
 
 log = logging.getLogger()
@@ -102,7 +103,7 @@ def main():
     os.makedirs(devnet_dir, exist_ok=True)
 
     if args.allocs:
-        devnet_l1_genesis(paths)
+        devnet_l1_genesis(paths, args.offline)
         return
 
     git_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
@@ -122,7 +123,7 @@ def main():
         })
 
     log.info('Devnet starting')
-    devnet_deploy(paths)
+    devnet_deploy(paths, offline)
 
 def init_devnet_l1_deploy_config(paths, update_timestamp=False):
     deploy_config = read_json(paths.devnet_config_template_path)
@@ -135,15 +136,16 @@ def init_devnet_l1_deploy_config(paths, update_timestamp=False):
         deploy_config['usePlasma'] = True
     write_json(paths.devnet_config_path, deploy_config)
 
-def devnet_l1_genesis(paths):
+def devnet_l1_genesis(paths, offline):
     log.info('Generating L1 genesis state')
     init_devnet_l1_deploy_config(paths)
 
     fqn = 'scripts/Deploy.s.sol:Deploy'
     # Use foundry pre-funded account #1 for the deployer
-    run_command([
+    cmd = [
         'forge', 'script', '--chain-id', '900', fqn, "--sig", "runWithStateDump()", "--private-key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-    ], env={}, cwd=paths.contracts_bedrock_dir)
+    ] + ["--offline"] if offline else []
+    run_command(cmd, env={}, cwd=paths.contracts_bedrock_dir)
 
     forge_dump = read_json(paths.forge_dump_path)
     write_json(paths.allocs_path, { "accounts": forge_dump })
@@ -152,7 +154,7 @@ def devnet_l1_genesis(paths):
     shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
 
 # Bring up the devnet where the contracts are deployed to L1
-def devnet_deploy(paths):
+def devnet_deploy(paths, offline):
     if os.path.exists(paths.genesis_l1_path):
         log.info('L1 genesis already generated.')
     else:
@@ -162,7 +164,7 @@ def devnet_deploy(paths):
             # file here always. This is because CI will run devnet-allocs
             # without DEVNET_FPAC=true which means the allocs will be wrong.
             # Re-running this step means the allocs will be correct.
-            devnet_l1_genesis(paths)
+            devnet_l1_genesis(paths, offline)
 
         # It's odd that we want to regenerate the devnetL1.json file with
         # an updated timestamp different than the one used in the devnet_l1_genesis
