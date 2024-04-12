@@ -22,6 +22,7 @@ parser = argparse.ArgumentParser(description='Bedrock devnet launcher')
 parser.add_argument('--monorepo-dir', help='Directory of the monorepo', default=os.getcwd())
 parser.add_argument('--allocs', help='Only create the allocs and exit', type=bool, action=argparse.BooleanOptionalAction)
 parser.add_argument('--test', help='Tests the deployment, must already be deployed', type=bool, action=argparse.BooleanOptionalAction)
+parser.add_argument('--offline', help='Force forge to work offline', type=bool, action=argparse.BooleanOptionalAction)
 
 log = logging.getLogger()
 
@@ -94,7 +95,7 @@ def main():
     os.makedirs(devnet_dir, exist_ok=True)
 
     if args.allocs:
-        devnet_l1_genesis(paths)
+        devnet_l1_genesis(paths, args.offline)
         return
 
     git_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
@@ -117,7 +118,7 @@ def main():
     devnet_deploy(paths)
 
 
-def deploy_contracts(paths):
+def deploy_contracts(paths, offline):
     wait_up(8545)
     wait_for_rpc_server('127.0.0.1:8545')
     res = eth_accounts('127.0.0.1:8545')
@@ -144,7 +145,7 @@ def deploy_contracts(paths):
         'forge', 'script', fqn, '--sender', account,
         '--rpc-url', 'http://127.0.0.1:8545', '--broadcast',
         '--unlocked'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
+    ] + ['--offline'] if offline else [], env={}, cwd=paths.contracts_bedrock_dir)
 
     shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
 
@@ -152,7 +153,7 @@ def deploy_contracts(paths):
     run_command([
         'forge', 'script', fqn, '--sig', 'sync()',
         '--rpc-url', 'http://127.0.0.1:8545'
-    ], env={}, cwd=paths.contracts_bedrock_dir)
+    ] + ['--offline'] if offline else [], env={}, cwd=paths.contracts_bedrock_dir)
 
 def init_devnet_l1_deploy_config(paths, update_timestamp=False):
     deploy_config = read_json(paths.devnet_config_template_path)
@@ -160,7 +161,7 @@ def init_devnet_l1_deploy_config(paths, update_timestamp=False):
         deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
     write_json(paths.devnet_config_path, deploy_config)
 
-def devnet_l1_genesis(paths):
+def devnet_l1_genesis(paths, offline):
     log.info('Generating L1 genesis state')
     init_devnet_l1_deploy_config(paths)
 
@@ -171,7 +172,7 @@ def devnet_l1_genesis(paths):
     ])
 
     try:
-        forge = ChildProcess(deploy_contracts, paths)
+        forge = ChildProcess(deploy_contracts, paths, offline)
         forge.start()
         forge.join()
         err = forge.get_error()
@@ -188,13 +189,13 @@ def devnet_l1_genesis(paths):
 
 
 # Bring up the devnet where the contracts are deployed to L1
-def devnet_deploy(paths):
+def devnet_deploy(paths, offline):
     if os.path.exists(paths.genesis_l1_path):
         log.info('L1 genesis already generated.')
     else:
         log.info('Generating L1 genesis.')
         if os.path.exists(paths.allocs_path) == False:
-            devnet_l1_genesis(paths)
+            devnet_l1_genesis(paths, offline)
 
         # It's odd that we want to regenerate the devnetL1.json file with
         # an updated timestamp different than the one used in the devnet_l1_genesis
